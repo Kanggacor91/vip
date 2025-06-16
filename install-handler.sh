@@ -7,25 +7,31 @@ LOCKFILE="/tmp/setup_install.lock"
 IZIN_URL="https://raw.githubusercontent.com/kanggacor91/izin/main/ip"
 IPVPS=$(curl -s https://ipv4.icanhazip.com)
 SCREEN_NAME="install_${NAMA}"
-if [[ -f "$LOCKFILE" ]]; then
-    echo "⛔ Proses instalasi lain sedang berjalan. Harap tunggu hingga selesai." | tee -a ${LOGFILE}
-    exit 1
+if screen -ls | grep -q "\.install_"; then
+    for PID in $(pgrep -f "SCREEN.*setup.sh"); do
+        if ps -p $PID -o args= | grep -q "/root/setup.sh"; then
+            echo "⛔ Install.sh masih berjalan di screen. Tidak boleh menjalankan lebih dari satu instance." | tee -a "$LOGFILE"
+            exit 1
+        fi
+    done
 fi
-echo $$ > "$LOCKFILE"
+
+# === Fungsi pengecekan izin IP (maks 3 menit / 36x percobaan @5s) ===
 cek_izin() {
-    for ((i=1;i<=60;i++)); do
+    for ((i=1;i<=36;i++)); do
         if curl -s "$IZIN_URL" | grep -qw "$IPVPS"; then
-            echo "✅ IP $IPVPS ditemukan dalam daftar izin." | tee -a ${LOGFILE}
+            echo "✅ IP $IPVPS ditemukan dalam daftar izin." | tee -a "$LOGFILE"
             return 0
         else
-            echo "⏳ [$i/60] Menunggu IP $IPVPS terdaftar dalam izin..." | tee -a ${LOGFILE}
+            echo "⏳ [$i/36] Menunggu IP $IPVPS terdaftar dalam izin..." | tee -a "$LOGFILE"
             sleep 5
         fi
     done
-    echo "⛔ Timeout: IP $IPVPS tidak ditemukan setelah 5 menit. Proses dibatalkan." | tee -a ${LOGFILE}
-    rm -f "$LOCKFILE"
+    echo "⛔ Timeout: IP $IPVPS tidak ditemukan setelah 3 menit. Proses dibatalkan." | tee -a "$LOGFILE"
     exit 1
 }
+
+# === Jalankan pengecekan izin ===
 cek_izin
 DEBIAN_FRONTEND=noninteractive apt install -y screen jq speedtest-cli wget curl openssh-server | tee -a ${LOGFILE}
 if [[ ! -f /root/setup.sh ]]; then
@@ -36,9 +42,3 @@ screen -S "${SCREEN_NAME}" -dm bash -c "export DEBIAN_FRONTEND=noninteractive; (
 
 echo "✅ Proses instalasi untuk $NAMA dimulai di screen: ${SCREEN_NAME}"
 echo "ℹ️ Lihat log: screen -r ${SCREEN_NAME}  atau cek ${LOGFILE}"
-while screen -list | grep -q "${SCREEN_NAME}"; do
-    sleep 5
-done
-
-rm -f "$LOCKFILE"
-
