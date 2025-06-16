@@ -3,8 +3,8 @@ NAMA=$1
 DOMAIN=$2
 LOGFILE="/root/log_install_${NAMA}.log"
 
-# Install dependensi
-apt install -y screen jq speedtest-cli wget curl | tee ${LOGFILE}
+# Install dependensi tanpa prompt interaktif
+DEBIAN_FRONTEND=noninteractive apt install -y screen jq speedtest-cli wget curl openssh-server | tee ${LOGFILE}
 
 # Ambil setup.sh jika belum ada
 if [[ ! -f /root/setup.sh ]]; then
@@ -12,8 +12,8 @@ if [[ ! -f /root/setup.sh ]]; then
     chmod +x /root/setup.sh
 fi
 
-# Jalankan setup.sh di dalam screen
-screen -S install_${NAMA} -dm bash -c "echo -e '${NAMA}\n1\n${DOMAIN}\ny' | /root/setup.sh" | tee -a ${LOGFILE}
+# Jalankan setup.sh di dalam screen dengan input otomatis
+screen -S install_${NAMA} -dm bash -c "export DEBIAN_FRONTEND=noninteractive; (echo -e '${NAMA}\n1\n${DOMAIN}'; yes y) | /root/setup.sh"
 
 # Info ke user
 echo "✅ Proses instalasi untuk $NAMA dimulai di screen: install_${NAMA}"
